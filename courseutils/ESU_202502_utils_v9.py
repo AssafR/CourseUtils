@@ -3,6 +3,15 @@
 # You can import this in Colab as:
 #   import ESU_202502_utils_v9 as esu_utils
 
+#  To make it easier, add to __init__.py:
+
+# from .ESU_202502_utils_v9 import (
+#    fetch_image_any,
+    #     __all__ = [
+#    "fetch_image_any",
+   
+#  etc.
+
 
 # ---- Utility cell extracted from notebook ----
 def fetch_image_any(src):
