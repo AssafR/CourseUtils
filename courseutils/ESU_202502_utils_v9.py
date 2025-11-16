@@ -53,34 +53,6 @@ def cosine_logits(query, prototypes, tau: float = 1.0):
 # Wikipedia image download utils:
 
 
-# === AUTO IMAGE FETCH (Wikimedia with proper UA) + FALLBACKS ===
-# Put this ABOVE your "Data preparation" cell. Then run Preflight + Sanity Grid.
-import time
-import json
-from io import BytesIO
-
-import numpy as np
-import requests
-from PIL import Image
-
-RANDOM_SEED   = int(globals().get("RANDOM_SEED", 42))
-ANIMAL_NAME   = globals().get("ANIMAL_NAME", "capybara")
-OTHER_CLASSES = globals().get("OTHER_CLASSES", {"cat": [], "dog": [], "horse": []})
-K_SHOT        = int(globals().get("K_SHOT", 1))
-Q_PER_CLASS   = int(globals().get("Q_PER_CLASS", 2))
-MIN_NEEDED    = max(1, K_SHOT + Q_PER_CLASS)
-
-# IMPORTANT: Wikimedia asks for a descriptive UA w/ contact
-UA_CONTACT = "FewShotColab/1.0 (contact: teacher@example.com)"  # <-- optional: put your email/site
-HEADERS = {
-    "User-Agent": UA_CONTACT,
-    "Accept": "application/json, text/plain, */*",
-}
-
-rng = np.random.default_rng(RANDOM_SEED)
-session = requests.Session()
-session.headers.update(HEADERS)
-TIMEOUT = 25
 
 def _load_image(url, ref="https://www.google.com/"):
     r = session.get(url, timeout=TIMEOUT, allow_redirects=True, stream=True, headers={
@@ -223,53 +195,6 @@ def _open_image_from_bytes(content):
     img = Image.open(BytesIO(content)).convert("RGB")
     return img
 
-def load_image_polite(url, referer="https://www.google.com/"):
-    # Cache first
-    if url in DOWNLOAD_CACHE:
-        return DOWNLOAD_CACHE[url]
-
-    pause = THROTTLE_SEC
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            r = session.get(
-                url,
-                timeout=TIMEOUT,
-                allow_redirects=True,
-                stream=True,
-                headers={**HEADERS, "Referer": referer},
-            )
-            # Quick short-circuit for retryable statuses
-            if _should_retry_status(r.status_code):
-                # Respect Retry-After if present
-                ra = r.headers.get("Retry-After")
-                if ra:
-                    try:
-                        pause = max(pause, float(ra))
-                    except Exception:
-                        pass
-                if attempt < MAX_RETRIES:
-                    _sleep_with_jitter(pause)
-                    pause *= BACKOFF
-                    continue
-            r.raise_for_status()
-            content = r.raw.read()
-            img = _open_image_from_bytes(content)
-            DOWNLOAD_CACHE[url] = img
-            # be nice even on success
-            _sleep_with_jitter(THROTTLE_SEC * 0.6)
-            return img
-        except requests.HTTPError as e:
-            if getattr(e.response, "status_code", None) and _should_retry_status(e.response.status_code) and attempt < MAX_RETRIES:
-                _sleep_with_jitter(pause)
-                pause *= BACKOFF
-                continue
-            raise
-        except Exception:
-            if attempt < MAX_RETRIES:
-                _sleep_with_jitter(pause)
-                pause *= BACKOFF
-                continue
-            raise
 
 
 def pil_from_sources(label, urls_or_tokens, min_needed=1, search_fallback=True):
