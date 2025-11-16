@@ -1,0 +1,5 @@
+[project]
+name = "courseutils"
+version = "0.1.0"
+description = "Utility code for my course notebooks"
+requires-python = ">=3.9"
