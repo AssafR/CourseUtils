@@ -270,3 +270,29 @@ def load_image_polite(url, referer="https://www.google.com/"):
                 pause *= BACKOFF
                 continue
             raise
+
+
+def pil_from_sources(label, urls_or_tokens, min_needed=1, search_fallback=True):
+    """
+    Download images from a mixed list of direct URLs or 'commons:File:...' tokens.
+    If nothing usable is obtained and ENABLE_PLACEHOLDER_ON_FAIL is True, synthesize placeholders.
+    """
+    imgs = []
+
+    # Try provided sources if any
+    for src in (urls_or_tokens or []):
+        try:
+            imgs.append(fetch_image_any(src))
+        except Exception as e:
+            print(f"[WARN] {e}")
+
+    # If still not enough and search fallback is implemented elsewhere, we could add it here (left as-is).
+    # ...
+
+    # Placeholder fallback
+    if len(imgs) < min_needed and ENABLE_PLACEHOLDER_ON_FAIL:
+        need = max(min_needed, 3)
+        print(f"[INFO] Using placeholder images for '{label}' (requested {min_needed}, got {len(imgs)}).")
+        imgs.extend(make_placeholder_images(label, n=need-len(imgs), size=256))
+
+    return imgs
