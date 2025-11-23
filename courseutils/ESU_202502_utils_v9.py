@@ -12,6 +12,13 @@
    
 #  etc.
 
+import requests
+import time
+import random
+import numpy as np
+from PIL import Image
+from io import BytesIO
+
 
 # ---- Utility cell extracted from notebook ----
 def fetch_image_any(src):
