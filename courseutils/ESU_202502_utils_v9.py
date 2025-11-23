@@ -39,7 +39,6 @@ session.headers.update(HEADERS)
 
 
 # If your auto-fetch cell had a private _load_image(), we override it here:
-globals()["_load_image"] = load_image_polite
 
 # Optional: shrink the target width used by Commons resolver for fewer bytes per file.
 # If you have a function commons_files_to_urls(width=...), rebind a narrower default:
