@@ -38,6 +38,20 @@ session = globals().get("session") or requests.Session()
 session.headers.update(HEADERS)
 
 
+
+
+def load_image(url):
+    """Downloads and returns a PIL image from the given URL."""
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise ValueError(f"Failed to download image: {url}")
+    try:
+        return Image.open(BytesIO(response.content)).convert("RGB")
+    except Exception as e:
+        raise ValueError(f"Could not open image from {url}. Error: {e}")
+
+
 # If your auto-fetch cell had a private _load_image(), we override it here:
 
 # Optional: shrink the target width used by Commons resolver for fewer bytes per file.
