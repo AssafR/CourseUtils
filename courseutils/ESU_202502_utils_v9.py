@@ -21,6 +21,36 @@ from io import BytesIO
 
 rng = random.Random(42)
 
+# === Patch: polite loader + backoff + cache (drop-in) ===
+
+# Polite globals
+UA_CONTACT = "FewShotColab/1.0 (contact: teacher@example.com)"  # keep a descriptive UA
+HEADERS = {"User-Agent": UA_CONTACT, "Accept": "image/*,*/*;q=0.8"}
+TIMEOUT = 25
+THROTTLE_SEC = 0.8          # base pause between fetches (be generous)
+MAX_RETRIES = 4
+BACKOFF = 1.8               # exponential backoff factor
+JITTER = 0.25               # random jitter added to pauses
+DOWNLOAD_CACHE = {}         # url -> PIL.Image (in-memory)
+
+# If your auto-fetch code defines these, we’ll reuse; otherwise we’ll make a new session.
+session = globals().get("session") or requests.Session()
+session.headers.update(HEADERS)
+
+
+# If your auto-fetch cell had a private _load_image(), we override it here:
+globals()["_load_image"] = load_image_polite
+
+# Optional: shrink the target width used by Commons resolver for fewer bytes per file.
+# If you have a function commons_files_to_urls(width=...), rebind a narrower default:
+def _wrap_commons_files_to_urls(fn):
+    def wrapped(file_titles, width=640):  # default 640 instead of 1024
+        return fn(file_titles, width=width)
+    return wrapped
+
+if "commons_files_to_urls" in globals():
+    commons_files_to_urls = _wrap_commons_files_to_urls(commons_files_to_urls)
+
 
 # ---- Utility cell extracted from notebook ----
 def fetch_image_any(src):
@@ -239,3 +269,51 @@ def pil_from_sources(label, urls_or_tokens, min_needed=1, search_fallback=True):
         imgs.extend(make_placeholder_images(label, n=need-len(imgs), size=256))
 
     return imgs
+
+def load_image_polite(url, referer="https://www.google.com/"):
+    # Cache first
+    if url in DOWNLOAD_CACHE:
+        return DOWNLOAD_CACHE[url]
+
+    pause = THROTTLE_SEC
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            r = session.get(
+                url,
+                timeout=TIMEOUT,
+                allow_redirects=True,
+                stream=True,
+                headers={**HEADERS, "Referer": referer},
+            )
+            # Quick short-circuit for retryable statuses
+            if _should_retry_status(r.status_code):
+                # Respect Retry-After if present
+                ra = r.headers.get("Retry-After")
+                if ra:
+                    try:
+                        pause = max(pause, float(ra))
+                    except Exception:
+                        pass
+                if attempt < MAX_RETRIES:
+                    _sleep_with_jitter(pause)
+                    pause *= BACKOFF
+                    continue
+            r.raise_for_status()
+            content = r.raw.read()
+            img = _open_image_from_bytes(content)
+            DOWNLOAD_CACHE[url] = img
+            # be nice even on success
+            _sleep_with_jitter(THROTTLE_SEC * 0.6)
+            return img
+        except requests.HTTPError as e:
+            if getattr(e.response, "status_code", None) and _should_retry_status(e.response.status_code) and attempt < MAX_RETRIES:
+                _sleep_with_jitter(pause)
+                pause *= BACKOFF
+                continue
+            raise
+        except Exception:
+            if attempt < MAX_RETRIES:
+                _sleep_with_jitter(pause)
+                pause *= BACKOFF
+                continue
+            raise
