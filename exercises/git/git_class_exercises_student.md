@@ -40,112 +40,22 @@ Write down any issues you encounter.
 
 ---
 
-## Block 3 – Branching & Merging: Alternate Realities
+## Block 3 – Branching & Merging
 
-### Scenario
+1. Create a new branch called `experiment-linear`.
+2. Modify the Python file from the previous exercises so it returns a different model name.
+3. Commit the change.
+4. Switch back to the `main` branch.
+5. Verify that your change is **not** visible on `main`.
+6. Switch back to your experimental branch and confirm the change is still there.
+7. Merge the experimental branch into `main`.
+8. Verify that the change is now visible on `main`.
 
-Imagine your team has a baseline machine learning model:
+Questions:
 
-```python
-def model_name():
-    return "Baseline Linear Separator"
-
-print(model_name())
-```
-
-You want to experiment without risking the stable version.
-
----
-
-### Step 1 – Create an Experimental Branch
-
-Create a new branch:
-
-```bash
-git switch -c experiment-linear
-```
-
-Modify the file:
-
-```python
-def model_name():
-    return "Improved Linear Separator"
-
-print(model_name())
-```
-
-Commit the change:
-
-```bash
-git add model.py
-git commit -m "Improve linear separator"
-```
-
----
-
-### Step 2 – Return to Main
-
-Switch back:
-
-```bash
-git switch main
-```
-
-### Question
-
-What does the program print now?
-
-Why?
-
----
-
-### Step 3 – Compare Alternate Realities
-
-Switch back to the experimental branch:
-
-```bash
-git switch experiment-linear
-```
-
-### Question
-
-What does the program print now?
-
-What changed?
-
----
-
-### Step 4 – Merge the Experiment
-
-Return to main:
-
-```bash
-git switch main
-```
-
-Merge the branch:
-
-```bash
-git merge experiment-linear
-```
-
-Run the program again.
-
-### Question
-
-What does it print now?
-
----
-
-### Reflection
-
-Answer in your own words:
-
-1. Why didn't the experimental change affect `main` immediately?
-2. What problem do branches solve?
-3. Why might a team prefer branches over editing `main` directly?
-
----
+- Why did the change disappear when you switched back to `main`?
+- What problem do branches solve?
+- Why might a team prefer branches over editing `main` directly?
 
 ## Block 4 – Working With Remotes (GitHub)
 
