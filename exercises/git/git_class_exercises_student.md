@@ -40,15 +40,110 @@ Write down any issues you encounter.
 
 ---
 
-## Block 3 – Branching & Merging
+## Block 3 – Branching & Merging: Alternate Realities
 
-1. Create a new branch for a small feature.
-2. Make changes to the file on that branch.
-3. Commit the changes.
-4. Switch back to the main branch.
-5. Verify your change is *not* visible on the main branch.
-6. Merge your feature branch into the main branch.
-7. Optionally, clean up the branch.
+### Scenario
+
+Imagine your team has a baseline machine learning model:
+
+```python
+def model_name():
+    return "Baseline Linear Separator"
+
+print(model_name())
+```
+
+You want to experiment without risking the stable version.
+
+---
+
+### Step 1 – Create an Experimental Branch
+
+Create a new branch:
+
+```bash
+git switch -c experiment-linear
+```
+
+Modify the file:
+
+```python
+def model_name():
+    return "Improved Linear Separator"
+
+print(model_name())
+```
+
+Commit the change:
+
+```bash
+git add model.py
+git commit -m "Improve linear separator"
+```
+
+---
+
+### Step 2 – Return to Main
+
+Switch back:
+
+```bash
+git switch main
+```
+
+### Question
+
+What does the program print now?
+
+Why?
+
+---
+
+### Step 3 – Compare Alternate Realities
+
+Switch back to the experimental branch:
+
+```bash
+git switch experiment-linear
+```
+
+### Question
+
+What does the program print now?
+
+What changed?
+
+---
+
+### Step 4 – Merge the Experiment
+
+Return to main:
+
+```bash
+git switch main
+```
+
+Merge the branch:
+
+```bash
+git merge experiment-linear
+```
+
+Run the program again.
+
+### Question
+
+What does it print now?
+
+---
+
+### Reflection
+
+Answer in your own words:
+
+1. Why didn't the experimental change affect `main` immediately?
+2. What problem do branches solve?
+3. Why might a team prefer branches over editing `main` directly?
 
 ---
 
