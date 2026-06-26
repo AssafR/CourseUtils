@@ -89,6 +89,15 @@ Several corrections were made to the shapes:
   - Continuous weights plus occasional missing features break those correlations and make it easier for PCA to recover something close to the original part basis.
   - Separating `X_vis` (didactic, clean faces) and `X_pca` (statistically richer) lets us keep good teaching visuals without compromising PCA quality.
 
+### Displaying both generated datasets
+
+- **Decision**:
+  - Display example sketches from `X_vis`.
+  - Also display example sketches from the actual PCA training set `X_pca` directly afterward.
+- **Why**:
+  - The notebook creates two populations, and only showing `X_vis` made it easy to miss that PCA was trained on a different, partly missing, continuous-weight population.
+  - Showing `X_pca` makes the design tradeoff explicit: `X_vis` is visually clean and follows the one-of-K feature rule, while `X_pca` is less face-like but better for separating basis directions statistically.
+
 ---
 
 ## PCA fitting and alignment (Cell 4)
@@ -112,14 +121,37 @@ Several corrections were made to the shapes:
 ### Aligning PCA components to basis order
 
 - **Decision**:
-  - Compute the correlation matrix `corr = C @ B.T` between PCA components `C` and flattened bases `B`.
-  - For each original basis index `j`, find the best-matching component `k = argmax |corr[k, j]|`.
+  - Compute a similarity matrix `corr` between PCA components `C` and flattened bases `B`.
+  - Support two similarity modes:
+    - Raw dot product: `corr = C @ B.T`.
+    - Cosine similarity: normalize each row first, then compute `corr = Cn @ Bn.T`.
   - Fix the sign so that the component matches the basis orientation: multiply by `sign(corr[k, j])`.
   - Store the matched, sign-corrected images in `aligned_components[j]`.
 - **Why**:
   - Raw PCA components are (1) arbitrarily ordered and (2) sign-ambiguous. Without alignment, “PC 0” might line up with “Mouth 3” with a negative sign.
   - Pedagogically, it is clearer to speak about “the PC that corresponds to Hair 2” rather than “PC 7”.
   - The alignment permutation `perm` is also reused later to map PCA coordinates to the basis order when we compare weights.
+
+### Cosine similarity toggle
+
+- **Decision**:
+  - Add `cosine_similarity = True/False` to switch between unnormalized dot product and cosine similarity.
+  - When using cosine similarity, normalize the PCA components and the original sparse basis images directly.
+  - Do **not** subtract `X_pca_mean_val` from each sparse basis image before comparing.
+- **Why**:
+  - The raw dot product is biased toward high-energy basis images; cosine similarity emphasizes shape/direction rather than magnitude.
+  - Subtracting the full population mean from an individual sparse basis image adds a large “negative mean face” to every basis, making all bases look artificially similar to the global face structure. That produced poor visual matches, so the cosine branch compares the sparse basis shapes as-is.
+
+### One-to-one PC-to-basis assignment
+
+- **Decision**:
+  - Replace independent per-basis `argmax` matching with `scipy.optimize.linear_sum_assignment`.
+  - Use `assignment_score = abs(corr)` and solve `linear_sum_assignment(-assignment_score)` so the total similarity is maximized.
+  - Store the result in the same `perm[j] = matched_pc_index` format used by later cells.
+- **Why**:
+  - The earlier greedy `argmax` could assign the same PCA component to several original bases. That was visually confusing and mathematically inconsistent with the intended “one matched PC per basis” explanation.
+  - The assignment solver finds the globally best distinct set of matches: each selected PC can be used at most once.
+  - This preserves the instructor-friendly interpretation of `perm` while making the mapping more faithful and less ambiguous.
 
 ### Per-component normalization for PCA images
 
@@ -155,6 +187,17 @@ Several corrections were made to the shapes:
 - **Why**:
   - The sketch index lets students browse different combinations of basis features.
   - The PC count slider shows how reconstruction quality improves as more components are included, up to the full subspace used in training.
+
+### Widget output rendering
+
+- **Decision**:
+  - Avoid repeatedly emitting matplotlib output from slider callbacks.
+  - Render each matplotlib figure to PNG bytes in memory, then update persistent `widgets.Image` objects by assigning to their `.value`.
+  - Clear saved outputs from the affected notebook cells after changing the rendering mechanism.
+- **Why**:
+  - In the Cursor/Jupyter display environment, `widgets.interact`, `Output`, `plt.show()`, and even direct `display(fig)` could leave duplicated groups of identical plots when cells were rerun or sliders updated.
+  - Updating an existing image widget mutates one displayed object instead of appending new output events, which is a more robust rendering model for this notebook.
+  - Clearing saved outputs removes stale duplicated render data already stored in the `.ipynb` file.
 
 ### Truncating PCA coordinates cleanly
 
@@ -267,18 +310,55 @@ The logic for deciding which tiles to show evolved through several iterations to
 - **Why**:
   - Some students (or instructors) may want to go beyond images and see that PCA is literally working on flattened vectors.
   - This tool provides a bridge between the geometric picture (“images/features”) and the algebraic one (“vectors in ℝⁿ”).
+  - Like the reconstruction widget, this cell now renders to a persistent `widgets.Image` to avoid duplicated plot outputs in the notebook UI.
+
+---
+
+## Generating new faces from PCA space (Cells 7-9)
+
+### Random PCA coefficient sampling
+
+- **Decision**:
+  - Add a cell that samples random PCA coefficients with a user-controlled number of components and a common coefficient scale.
+  - Reconstruct sampled points through `pca.inverse_transform`, add `X_pca_mean_val`, clip to `[0, 1]`, and display the generated faces in a grid.
+- **Why**:
+  - This introduces PCA as a simple generative model: once PCA has learned directions of variation, we can move around in that coordinate system to create new sketches.
+  - A common coefficient scale is easy to explain, but it does not reflect how much each PC actually varies in the training population.
+
+### Population-like PCA coefficient scales
+
+- **Decision**:
+  - Add a second sampling cell where coefficient standard deviations are proportional to the PCA explained variances.
+  - Include a `temperature` parameter to make samples more conservative or more extreme.
+- **Why**:
+  - In PCA, each component has a natural variance scale learned from the data. Sampling every component with the same standard deviation overuses low-variance directions and underuses high-variance ones.
+  - Variance-scaled sampling better matches the distribution PCA actually saw during training, so the generated sketches are more population-like.
+
+### Structured one-of-K PCA-guided sampling
+
+- **Decision**:
+  - Add a structured sampler that uses PCA guidance but enforces exactly one active variant per feature group.
+  - Convert PCA-suggested weights back into basis-group choices, then rebuild samples from `flat_bases` with a one-of-K structure.
+  - Rename the local weight matrix from `W` to `W_struct` to avoid shadowing the global image width `W`.
+- **Why**:
+  - Plain Gaussian PCA sampling is continuous and does not know the higher-order rule “a face has one eyes variant, one nose variant, one mouth variant”.
+  - Enforcing the group rule demonstrates the limitation of PCA as a purely linear Gaussian model and shows one practical way to add domain structure back on top.
+  - Avoiding the `W` name collision prevents confusing runtime errors where code intended to use the image width instead saw a weight matrix.
 
 ---
 
 ## Summary for instructors
 
 - **Two datasets**: `X_vis` (clean, discrete faces for visualization) and `X_pca` (richer, continuous, partially missing features for training PCA).
+- **Dataset transparency**: both `X_vis` and `X_pca` are displayed so students can see the difference between the clean teaching examples and the noisier PCA-training population.
 - **Explicit centering**: `X_pca_mean_val` is computed once and reused for all PCA transforms and reconstructions.
-- **PCA alignment**: Components are permuted and sign-corrected to match named basis elements; this mapping powers both image grids and weight comparisons.
+- **PCA alignment**: Components are matched one-to-one, sign-corrected, and optionally compared using cosine similarity; this mapping powers both image grids and weight comparisons.
 - **Visual aids**:
   - Per-image normalization for PCA and grid images makes patterns visible despite scale differences.
   - Labeled weight strips with y-ticks connect abstract coefficients to concrete features.
   - The bottom grid only shows active bases and its size responds to `# of PCs`, so students see which learned directions matter for the current reconstruction.
+- **Robust interactive rendering**: widget cells update persistent image widgets rather than repeatedly emitting matplotlib figures, reducing duplicated outputs in the notebook UI.
+- **Generative extensions**: additional cells sample from PCA space in increasingly structured ways, from simple random coefficients to population-scaled coefficients to one-of-K constrained sketches.
 
 These choices are all aimed at making the PCA behaviour *visually obvious* and *narratable* in terms of familiar “face parts”, while staying faithful to the underlying linear algebra.
 
